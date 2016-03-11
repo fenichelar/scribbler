@@ -25,8 +25,8 @@ def findEulerian(edges, verticies):
 verticies = {}
 edges = []
 coordinates = []
-movementFactor = 75
-mapFile = 'CS3630_Lab2_Map1.csv'
+movementFactor = 100
+mapFile = 'CS3630_Lab2_Map3.csv'
 
 with open(mapFile, 'rb') as csvfile:
     contents = csv.reader(csvfile)
