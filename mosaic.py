@@ -1,3 +1,5 @@
+#!/usr/local/bin/python2
+
 import numpy as np
 import cv2
 
@@ -21,8 +23,8 @@ def descript_keypt_extract(img):
 
     Returns:
         des (np.ndarray): Nx32 array of N feature descriptors of length 32.
-        kpts (list of N np.matrix of shape 3x1): List of N corresponding keypoints in 
-            homogeneous form. 
+        kpts (list of N np.matrix of shape 3x1): List of N corresponding keypoints in
+            homogeneous form.
         img2 (np.array): Image which draws the locations of found keypoints.
     """
 
@@ -52,13 +54,29 @@ def propose_pairs(descripts_a, keypts_a, descripts_b, keypts_b):
     For the top N matching descrpitors, select and return the top corresponding keypoint pairs.
 
     Returns:
-        pair_pts_a (list of N np.matrix of shape 3x1): List of N corresponding keypoints in 
-            homogeneous form. 
-        pair_pts_b (list of N np.matrix of shape 3x1): List of N corresponding keypoints in 
-            homogeneous form. 
+        pair_pts_a (list of N np.matrix of shape 3x1): List of N corresponding keypoints in
+            homogeneous form.
+        pair_pts_b (list of N np.matrix of shape 3x1): List of N corresponding keypoints in
+            homogeneous form.
     """
     # code here
+    N = 25
+    arr = []
 
+    for i in range(len(keypts_a)):
+        for j in range(len(keypts_b)):
+            arr.append(
+                (
+                    cv2.norm(descripts_a[i], descripts_b[j], cv2.NORM_HAMMING),
+                    keypts_a[i],
+                    keypts_b[j]
+                )
+            )
+
+    arr = sorted(arr, key=lambda x:x[0])
+
+    pair_pts_a = [arr[i][1] for i in range(N)]
+    pair_pts_b = [arr[i][2] for i in range(N)]
 
     return pair_pts_a, pair_pts_b
 
@@ -68,19 +86,45 @@ def homog_dlt(ptsa, ptsb):
 
     Find the homography H using the direct linear transform method. For correct
     correspondences, the points should all satisfy the equality
-    w*ptb = H pta, where w > 0 is some multiplier. 
+    w*ptb = H pta, where w > 0 is some multiplier.
 
     Arguments:
-        ptsa (list of N np.matrix of shape 3x1): List of N corresponding keypoints in 
-            homogeneous form. 
-        ptsb (list of N np.matrix of shape 3x1): List of N corresponding keypoints in 
-            homogeneous form. 
+        ptsa (list of N np.matrix of shape 3x1): List of N corresponding keypoints in
+            homogeneous form.
+        ptsb (list of N np.matrix of shape 3x1): List of N corresponding keypoints in
+            homogeneous form.
 
     Returns:
         H (np.matrix of shape 3x3): Homography found using DLT.
     """
     # code here
+    A = []
+    for a, b in zip(ptsa, ptsb):
+        A.append([
+            0,
+            0,
+            0,
+            -a[0,0],
+            -a[1,0],
+            -a[2,0],
+            b[1,0]*a[0,0],
+            b[1,0]*a[1,0],
+            b[1,0]*a[2,0]
+        ])
+        A.append([
+            a[0,0],
+            a[1,0],
+            a[2,0],
+            0,
+            0,
+            0,
+            -b[0,0]*a[0,0],
+            -b[0,0]*a[1,0],
+            -b[0,0]*a[2,0]
+        ])
 
+    _, _, V = np.linalg.svd(np.concatenate(np.asmatrix(A), 0))
+    H = np.asmatrix(np.reshape(np.transpose(V)[:,-1], (3,3)))
 
     return H
 
@@ -95,14 +139,25 @@ def homog_ransac(pair_pts_a, pair_pts_b):
 
     Returns:
         H (np.matrix of shape 3x3): Homography found using DLT and RANSAC.
-        best_inliers_a (list of N np.matrix of shape 3x1): List of N corresponding keypoints in 
-            homogeneous form. 
-        best_inliers_b (list of N np.matrix of shape 3x1): List of N corresponding keypoints in 
-            homogeneous form. 
+        best_inliers_a (list of N np.matrix of shape 3x1): List of N corresponding keypoints in
+            homogeneous form.
+        best_inliers_b (list of N np.matrix of shape 3x1): List of N corresponding keypoints in
+            homogeneous form.
     """
     # code here
+    ratio = 0
 
-    # H = homog_dlt(x,y)
+    for _ in range(10000):
+        rand = np.random.choice(len(pair_pts_a), 4, replace=False).tolist()
+        H = homog_dlt([pair_pts_a[i] for i in rand], [pair_pts_b[i] for i in rand])
+
+        inliers = [(pair_pts_a[i], pair_pts_b[i]) for i in range(len(pair_pts_a)) if abs(np.linalg.norm((np.dot(H, pair_pts_a[i]) / np.dot(H, pair_pts_a[i])[2,0]) - pair_pts_b[i])) < 4]
+
+        if len(inliers) > ratio:
+            ratio = len(inliers)
+            best_H = H
+            best_inliers_a = [i[0] for i in inliers]
+            best_inliers_b = [i[1] for i in inliers]
 
     return best_H, best_inliers_a, best_inliers_b
 
@@ -124,9 +179,12 @@ def perspect_combine(img_a, img_b, H, length, width):
             if np.sum(warp_a[i][j]) > 0.:
                 mask_a[i,j,:] = 1.
     img_ab = warp_a
-    img_ab[:bw,:bl,:] -= warp_a[:bw,:bl,:]/2.*mask_a[:bw,:bl,:]
-    img_ab[:bw,:bl,:] += img_b*(1-mask_a[:bw,:bl,:])
-    img_ab[:bw,:bl,:] += img_b/2.*mask_a[:bw,:bl,:]
+    img_ab[:bw,:bl,:] -= np.uint8(warp_a[:bw,:bl,:]/2.*mask_a[:bw,:bl,:])
+    img_ab[:bw,:bl,:] += np.uint8(img_b*(1-mask_a[:bw,:bl,:]))
+    img_ab[:bw,:bl,:] += np.uint8(img_b/2.*mask_a[:bw,:bl,:])
+    #img_ab[:bw,:bl,:] -= warp_a[:bw,:bl,:]/2.*mask_a[:bw,:bl,:]
+    #img_ab[:bw,:bl,:] += img_b*(1-mask_a[:bw,:bl,:])
+    #img_ab[:bw,:bl,:] += img_b/2.*mask_a[:bw,:bl,:]
     return img_ab
 
 # DO NOT MODIFY img_combine_homog
@@ -158,7 +216,7 @@ def img_combine_homog(img_a, img_b, length_ab, width_ab):
 # fill your in code here
 def rot_from_homog(H, K):
     """Find the rotation matrix from a homography from perspectives with identical camera centers.
-    
+
     The rotation found should be bRa or Ra^b.
 
     Arguments:
@@ -168,6 +226,7 @@ def rot_from_homog(H, K):
         R (np.matrix of shape 3x3): Rotation matrix from frame a to frame b
     """
     # code here
+    R = np.dot(np.dot(np.transpose(K), H), K)
     return R
 
 
@@ -183,8 +242,8 @@ def extract_y_angle(R):
         y_ang (float): angle in radians
     """
     # code here
+    y_ang = np.arctan2(R.item(3),R.item(0))
     return y_ang
-
 
 
 # DO NOT MODIFY single_pair_combine
@@ -211,7 +270,7 @@ def single_pair_combine(img_ai, img_bi):
     print 'R'
     print R
     print 'Y angle in Radians/Degrees'
-    print y_ang, np.rad2deg(yang)
+    print y_ang, np.rad2deg(y_ang)
 
     cv2.imshow('Image A', img_a)
     cv2.imshow('Image B', img_b)
@@ -238,10 +297,10 @@ def multi_pair_combine(beg_i, n_imgs):
 # DO NOT MODIFY main
 def main():
     if True:
-        single_pair_combine(0, 1)
+        single_pair_combine(1, 1)
 
     if False:
-        multi_pair_combine(0, 5)
+        multi_pair_combine(1, 5)
 
 if __name__ == "__main__":
     main()
