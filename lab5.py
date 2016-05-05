@@ -5,8 +5,6 @@ import numpy as np
 import cv2
 import csv
 
-count = 0
-
 init("/dev/tty.Fluke2-0D7B-Fluke2")
 
 def detectBlobs(im):
@@ -142,6 +140,7 @@ def moveForward():
 
 if __name__ == "__main__":
     global count
+    count = 0
     imageWidth = 427
     imageHeight = 266
     numParticles = 1000
