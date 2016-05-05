@@ -5,6 +5,8 @@ import numpy as np
 import cv2
 import csv
 
+count = 0
+
 init("/dev/tty.Fluke2-0D7B-Fluke2")
 
 def detectBlobs(im):
@@ -99,15 +101,29 @@ def resample(particles, weights):
     return particles, weights/np.sum(weights)
 
 def obstableDetected():
-    return (max(getObstacle()) > 1500)
+    return (max(getObstacle()) > 1000)
+
+def moveForwardUntilWall():
+    global count
+    count = 0
+    translate(1)
+    while not obstableDetected():
+        pass
+    stop()
 
 def rotate45Degrees():
+    global count
+    count = count + 1
+    if count > 10:
+        moveForwardUntilWall()
     stop()
     rotate(1)
     wait(.3)
     stop()
 
 def rotateXDegrees(x):
+    global count
+    count = 0
     stop()
     if x < 0:
         rotate(1)
@@ -117,18 +133,15 @@ def rotateXDegrees(x):
     stop()
 
 def moveForward():
+    global count
+    count = 0
     stop()
     translate(1)
-    wait(.75)
-    stop()
-
-def moveForwardUntilWall():
-    translate(1)
-    while not obstableDetected():
-        pass
+    wait(1)
     stop()
 
 if __name__ == "__main__":
+    global count
     imageWidth = 427
     imageHeight = 266
     numParticles = 1000
@@ -161,13 +174,16 @@ if __name__ == "__main__":
             size = int(np.ceil(keypoint.size/10))
             position = (float(point[0]-(imageWidth/2.0)))/float(imageWidth/2.0)
 
-            cv2.circle(im, point, radius=size, color=(255,0,0), thickness=size)
-            cv2.imwrite(picName, im)
-            print 'Position: ' + str(position)
-            print 'Size: ' + str(size)
-            cv2.imshow("Image", im)
-            cv2.waitKey()
+            #print 'Position: ' + str(position)
+            #print 'Size: ' + str(size)
+            #cv2.circle(im, point, radius=size, color=(255,0,0), thickness=size)
+            #cv2.imwrite(picName, im)
+            #cv2.imshow("Image", im)
+            #cv2.waitKey()
             if obstableDetected():
+                moveForward()
+                rotate45Degrees()
+            elif point[1] > imageHeight*.75:
                 rotate45Degrees()
             elif size < 3:
                 rotate45Degrees()
