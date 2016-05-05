@@ -157,8 +157,11 @@ if __name__ == "__main__":
         particles = np.concatenate((x,y), axis=1)
         weights = np.ones(numParticles)/numParticles
 
-        #savePicture(takePicture(), picName + '.png')
-        #im = cv2.imread(picName + '.png')
+        if not obstableDetected():
+            translate(.33)
+        else:
+            stop()
+
         pic = takePicture()
         im = cv2.cvtColor(np.array(pic.image), cv2.COLOR_RGB2BGR)
         yuv = cv2.cvtColor(im, cv2.COLOR_BGR2YUV)
@@ -182,6 +185,7 @@ if __name__ == "__main__":
             #cv2.waitKey()
             if obstableDetected():
                 moveForward()
+                rotate45Degrees()
                 rotate45Degrees()
             elif point[1] > imageHeight*.75:
                 rotate45Degrees()
