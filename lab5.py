@@ -186,6 +186,7 @@ if __name__ == "__main__":
                 moveForward()
                 rotate45Degrees()
                 rotate45Degrees()
+                rotate45Degrees()
             elif point[1] > imageHeight*.75:
                 rotate45Degrees()
             elif size < 3:
